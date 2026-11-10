@@ -1,0 +1,1340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HARIS - High-Accuracy Recognition & Identity System</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM 18 -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- Babel Standalone for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    @keyframes scanline {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(100%); }
+    }
+    @keyframes laser-sweep {
+      0% { top: 0%; opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { top: 100%; opacity: 0; }
+    }
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+      20%, 40%, 60%, 80% { transform: translateX(5px); }
+    }
+    @keyframes fade-scale {
+      0% { opacity: 0; transform: scale(0.9); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    .animate-scanline { animation: scanline 2s linear infinite; }
+    .animate-laser-sweep { animation: laser-sweep 2.5s ease-in-out infinite; }
+    .animate-fade-in { animation: fade-in 0.4s ease-out forwards; }
+    .animate-shake { animation: shake 0.4s ease-in-out; }
+    .animate-fade-scale { animation: fade-scale 0.3s ease-out forwards; }
+    
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); }
+    ::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.3); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(56, 189, 248, 0.6); }
+
+    body {
+      background-color: #020617;
+      color: #f8fafc;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      overflow-x: hidden;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ==========================================
+    // 0. High-Quality SVG Icons (Embedded)
+    // ==========================================
+    const Icon = ({ name, className = "w-5 h-5" }) => {
+      const icons = {
+        shield: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />,
+        userPlus: (
+          <g strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="8.5" cy="7" r="4" />
+            <line x1="20" y1="8" x2="20" y2="14" />
+            <line x1="23" y1="11" x2="17" y2="11" />
+          </g>
+        ),
+        database: (
+          <g strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+            <ellipse cx="12" cy="5" rx="9" ry="3" />
+            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+          </g>
+        ),
+        scan: (
+          <g strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+            <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+            <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+            <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+            <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+          </g>
+        ),
+        checkCircle: (
+          <g strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </g>
+        ),
+        xCircle: (
+          <g strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="15" y1="9" x2="9" y2="15" />
+            <line x1="9" y1="9" x2="15" y2="15" />
+          </g>
+        ),
+        cpu: (
+          <g strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+            <rect x="4" y="4" width="16" height="16" rx="2" />
+            <rect x="9" y="9" width="6" height="6" />
+            <line x1="9" y1="1" x2="9" y2="4" /><line x1="15" y1="1" x2="15" y2="4" />
+            <line x1="9" y1="20" x2="9" y2="23" /><line x1="15" y1="20" x2="15" y2="23" />
+            <line x1="20" y1="9" x2="23" y2="9" /><line x1="20" y1="14" x2="23" y2="14" />
+            <line x1="1" y1="9" x2="4" y2="9" /><line x1="1" y1="14" x2="4" y2="14" />
+          </g>
+        ),
+        fingerprint: (
+          <g strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+            <path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4" />
+            <path d="M14 13.12c0 2.38 0 6.38-1 8.88" />
+            <path d="M2 12a10 10 0 0 1 18-6" />
+            <path d="M2 16h.01" />
+            <path d="M21.8 16c.2-2 .131-5.354 0-6" />
+            <path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2" />
+            <path d="M8.65 22c.21-.66.45-1.32.57-2" />
+            <path d="M9 6.8a6 6 0 0 1 9 5.2v2" />
+          </g>
+        ),
+        activity: <polyline strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" points="22 12 18 12 15 21 9 3 6 12 2 12" />,
+        terminal: (
+          <g strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+            <polyline points="4 17 10 11 4 5" />
+            <line x1="12" y1="19" x2="20" y2="19" />
+          </g>
+        ),
+        crosshair: (
+          <g strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="22" y1="12" x2="18" y2="12" /><line x1="6" y1="12" x2="2" y2="12" />
+            <line x1="12" y1="6" x2="12" y2="2" /><line x1="12" y1="22" x2="12" y2="18" />
+          </g>
+        ),
+        refresh: (
+          <g strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+            <polyline points="23 4 23 10 17 10" />
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+          </g>
+        ),
+        camera: (
+          <g strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+            <circle cx="12" cy="13" r="4" />
+          </g>
+        ),
+        trash: (
+          <g strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          </g>
+        ),
+        eye: (
+          <g strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+            <circle cx="12" cy="12" r="3" />
+          </g>
+        ),
+        download: (
+          <g strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </g>
+        ),
+        close: (
+          <g strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+          </g>
+        )
+      };
+
+      return (
+        <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          {icons[name] || icons.shield}
+        </svg>
+      );
+    };
+
+    // ==========================================
+    // 1. 3D Particle Network Canvas Background
+    // ==========================================
+    const ParticleNetwork = () => {
+      const canvasRef = useRef(null);
+
+      useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        let animationFrameId;
+        let particles = [];
+
+        const resizeCanvas = () => {
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+        };
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Particle {
+          constructor() {
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height;
+            this.vx = (Math.random() - 0.5) * 0.45;
+            this.vy = (Math.random() - 0.5) * 0.45;
+            this.radius = Math.random() * 1.5 + 0.6;
+          }
+          update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            if (this.x < 0 || this.x > canvas.width) this.vx = -this.vx;
+            if (this.y < 0 || this.y > canvas.height) this.vy = -this.vy;
+          }
+          draw() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.45)';
+            ctx.fill();
+          }
+        }
+
+        const initParticles = () => {
+          particles = [];
+          const numParticles = Math.min(100, Math.floor((canvas.width * canvas.height) / 11000));
+          for (let i = 0; i < numParticles; i++) {
+            particles.push(new Particle());
+          }
+        };
+
+        initParticles();
+
+        const animate = () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          
+          for (let i = 0; i < particles.length; i++) {
+            particles[i].update();
+            particles[i].draw();
+            
+            for (let j = i + 1; j < particles.length; j++) {
+              const dx = particles[i].x - particles[j].x;
+              const dy = particles[i].y - particles[j].y;
+              const distance = Math.sqrt(dx * dx + dy * dy);
+              
+              if (distance < 115) {
+                ctx.beginPath();
+                ctx.strokeStyle = `rgba(56, 189, 248, ${0.16 * (1 - distance / 115)})`;
+                ctx.lineWidth = 0.8;
+                ctx.moveTo(particles[i].x, particles[i].y);
+                ctx.lineTo(particles[j].x, particles[j].y);
+                ctx.stroke();
+              }
+            }
+          }
+          animationFrameId = requestAnimationFrame(animate);
+        };
+
+        animate();
+
+        return () => {
+          window.removeEventListener('resize', resizeCanvas);
+          cancelAnimationFrame(animationFrameId);
+        };
+      }, []);
+
+      return (
+        <canvas 
+          ref={canvasRef} 
+          className="fixed inset-0 z-0 pointer-events-none"
+          style={{ background: 'radial-gradient(circle at 15% 15%, #0f172a 0%, #020617 100%)' }}
+        />
+      );
+    };
+
+    // ==========================================
+    // 2. UI Reusable Components
+    // ==========================================
+    const CyberCard = ({ children, className = "" }) => (
+      <div className={`bg-slate-900/60 backdrop-blur-xl border border-cyan-500/20 rounded-xl p-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] transition-all duration-300 hover:border-cyan-400/50 hover:shadow-[0_0_20px_rgba(56,189,248,0.15)] ${className}`}>
+        {children}
+      </div>
+    );
+
+    const CyberButton = ({ children, onClick, variant = 'primary', className = "", disabled = false, type = "button" }) => {
+      const baseStyle = "relative px-5 py-2.5 rounded-lg font-semibold tracking-wide transition-all duration-300 overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm";
+      const variants = {
+        primary: "bg-gradient-to-r from-cyan-600 to-blue-700 text-white border border-cyan-400/50 shadow-[0_0_15px_rgba(2,132,199,0.4)] hover:shadow-[0_0_25px_rgba(56,189,248,0.6)] hover:border-cyan-300",
+        success: "bg-gradient-to-r from-emerald-600 to-teal-700 text-white border border-emerald-400/50 shadow-[0_0_15px_rgba(16,185,129,0.4)] hover:shadow-[0_0_25px_rgba(52,211,153,0.6)] hover:border-emerald-300",
+        danger: "bg-gradient-to-r from-rose-600 to-red-700 text-white border border-rose-400/50 shadow-[0_0_15px_rgba(225,29,72,0.4)] hover:shadow-[0_0_25px_rgba(251,113,133,0.6)] hover:border-rose-300",
+        outline: "bg-transparent text-cyan-400 border border-cyan-500/50 hover:bg-cyan-950/50 hover:shadow-[0_0_15px_rgba(56,189,248,0.2)]"
+      };
+
+      return (
+        <button type={type} onClick={onClick} disabled={disabled} className={`${baseStyle} ${variants[variant]} ${className}`}>
+          <span className="absolute inset-0 w-full h-full bg-gradient-to-b from-transparent via-white/10 to-transparent -translate-y-full group-hover:animate-scanline pointer-events-none"></span>
+          {children}
+        </button>
+      );
+    };
+
+    // ==========================================
+    // 3. Tab 1: Live Biometric & QR Access Core
+    // ==========================================
+    const LiveAccessView = () => {
+      const [scanState, setScanState] = useState('idle'); // idle, scanning, granted, denied
+      const [scanProgress, setScanProgress] = useState(0);
+      const [hexStream, setHexStream] = useState('');
+      const [matchedUser, setMatchedUser] = useState(null);
+      const [matchConfidence, setMatchConfidence] = useState(0);
+      const [matchMethod, setMatchMethod] = useState('');
+      const [userPhotoUrl, setUserPhotoUrl] = useState(null);
+      const [cameraActive, setCameraActive] = useState(false);
+      const [cameraError, setCameraError] = useState(null);
+      const [logs, setLogs] = useState([
+        '] sys.init() completed',
+        '] LBPH neural classifier array loaded',
+        '] QR multi-layer engine: STANDBY'
+      ]);
+
+      const videoRef = useRef(null);
+      const canvasCaptureRef = useRef(null);
+
+      // Start webcam stream
+      useEffect(() => {
+        let stream = null;
+        async function startCamera() {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }
+            });
+            if (videoRef.current) {
+              videoRef.current.srcObject = stream;
+              setCameraActive(true);
+              setCameraError(null);
+              addLog('] Camera device connected: ONLINE');
+            }
+          } catch (err) {
+            console.error("Camera access error:", err);
+            setCameraError("Camera unavailable or permission denied. Click below to retry or scan demo.");
+            addLog('] Camera access: PERMISSION_BLOCKED / NOT_FOUND');
+          }
+        }
+        startCamera();
+
+        return () => {
+          if (stream) {
+            stream.getTracks().forEach(t => t.stop());
+          }
+        };
+      }, []);
+
+      const addLog = (msg) => {
+        setLogs(prev => [msg, ...prev.slice(0, 5)]);
+      };
+
+      const generateHex = () => {
+        return Array.from({length: 6}, () => Math.floor(Math.random()*16).toString(16).toUpperCase()).join(' ');
+      };
+
+      // Capture frame from video and send to backend
+      const captureFrameBase64 = () => {
+        if (!videoRef.current || !cameraActive) return null;
+        const video = videoRef.current;
+        const canvas = canvasCaptureRef.current || document.createElement('canvas');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL('image/jpeg', 0.85);
+      };
+
+      const handleScan = async () => {
+        if (scanState === 'scanning') return;
+        setScanState('scanning');
+        setScanProgress(15);
+        setHexStream(generateHex());
+        addLog('] INITIATING REAL-TIME BIOMETRIC VERIFICATION...');
+
+        // Step 1: Capture frame
+        const frameData = captureFrameBase64();
+        
+        let progress = 15;
+        const progressTimer = setInterval(() => {
+          progress = Math.min(progress + 15, 85);
+          setScanProgress(progress);
+          setHexStream(generateHex());
+        }, 120);
+
+        try {
+          // Send frame to backend for actual LBPH + QR evaluation
+          const response = await fetch('/api/verify_frame', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: frameData })
+          });
+
+          const data = await response.json();
+          clearInterval(progressTimer);
+          setScanProgress(100);
+
+          if (data.matched) {
+            setMatchedUser(data.user);
+            setMatchConfidence(data.confidence || 98);
+            setMatchMethod(data.method || 'DUAL_BIOMETRIC_AND_QR');
+            setUserPhotoUrl(data.photoUrl || `/api/users/${data.user}/photo`);
+            setScanState('granted');
+            addLog(`] AUTH_SUCCESS: ${data.user} (${data.confidence}% confidence)`);
+          } else {
+            setMatchedUser(null);
+            setScanState('denied');
+            addLog(`] AUTH_FAIL: ${data.reason || 'UNKNOWN ENTITY'}`);
+          }
+        } catch (err) {
+          clearInterval(progressTimer);
+          console.error("Scan error:", err);
+          setScanProgress(100);
+          setScanState('denied');
+          addLog('] ERR: Backend verification timeout');
+        }
+      };
+
+      return (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full animate-fade-in">
+          {/* Main Camera HUD */}
+          <div className="lg:col-span-2 flex flex-col gap-6">
+            <CyberCard className="flex-1 flex flex-col relative overflow-hidden">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-cyan-400 flex items-center gap-2">
+                  <Icon name="scan" className="w-5 h-5" /> Live Camera Core Feed
+                </h3>
+                <span className="flex items-center gap-2 text-xs font-mono text-emerald-400 bg-emerald-950/50 px-3 py-1 rounded-full border border-emerald-500/30">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  {scanState === 'scanning' ? 'ANALYZING...' : cameraActive ? 'CAMERA: ONLINE' : 'STANDBY'}
+                </span>
+              </div>
+
+              {/* Viewport Frame */}
+              <div className="relative flex-1 bg-slate-950 rounded-lg border border-slate-700/50 overflow-hidden min-h-[420px] flex items-center justify-center">
+                
+                {/* Live Video Element */}
+                <video 
+                  ref={videoRef} 
+                  autoPlay 
+                  playsInline 
+                  muted 
+                  className={`w-full h-full object-cover ${cameraActive ? 'block' : 'hidden'}`}
+                />
+
+                {/* Cyberpunk Grid Overlay */}
+                <div className="absolute inset-0 bg-[linear-gradient(rgba(56,189,248,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(56,189,248,0.05)_1px,transparent_1px)] bg-[size:30px_30px] pointer-events-none"></div>
+                
+                {!cameraActive && (
+                  <div className="text-slate-500 flex flex-col items-center p-6 text-center z-10">
+                    <Icon name="crosshair" className="w-16 h-16 mb-4 opacity-50" />
+                    <p className="font-mono text-cyan-400 font-semibold mb-2">Webcam Feed</p>
+                    <p className="text-xs text-slate-400 max-w-sm">
+                      {cameraError || "Ensure camera permissions are enabled in browser for live dual biometric recognition."}
+                    </p>
+                  </div>
+                )}
+
+                {/* Scanning Laser & Brackets HUD */}
+                {scanState === 'scanning' && (
+                  <>
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="w-60 h-72 border-2 border-cyan-400/60 rounded-lg relative">
+                         <div className="absolute -top-2 -left-2 w-6 h-6 border-t-4 border-l-4 border-cyan-400"></div>
+                         <div className="absolute -top-2 -right-2 w-6 h-6 border-t-4 border-r-4 border-cyan-400"></div>
+                         <div className="absolute -bottom-2 -left-2 w-6 h-6 border-b-4 border-l-4 border-cyan-400"></div>
+                         <div className="absolute -bottom-2 -right-2 w-6 h-6 border-b-4 border-r-4 border-cyan-400"></div>
+                         <div className="absolute top-0 left-0 w-full h-[3px] bg-cyan-400 shadow-[0_0_20px_4px_#22d3ee] animate-laser-sweep"></div>
+                      </div>
+                    </div>
+                    
+                    <div className="absolute top-4 left-4 font-mono text-cyan-400 text-xs bg-slate-950/80 px-3 py-2 rounded border border-cyan-900/60 pointer-events-none">
+                      <div>[LNDMRK] {hexStream}</div>
+                      <div className="mt-1 opacity-80">[CORE] EXTRACTING LBPH VECTOR</div>
+                    </div>
+
+                    <div className="absolute bottom-4 w-[85%] max-w-md font-mono text-cyan-400 text-sm bg-slate-950/90 p-3 rounded-lg border border-cyan-500/40 pointer-events-none">
+                      <div className="flex justify-between mb-1 text-xs">
+                        <span>Compiling Biometric Verification...</span>
+                        <span>{Math.floor(scanProgress)}%</span>
+                      </div>
+                      <div className="w-full bg-slate-800 rounded-full h-2 border border-cyan-900/50">
+                        <div 
+                          className="bg-cyan-400 h-2 rounded-full shadow-[0_0_10px_#22d3ee] transition-all duration-100" 
+                          style={{ width: `${scanProgress}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* ACCESS GRANTED OVERLAY */}
+                {scanState === 'granted' && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-emerald-950/85 backdrop-blur-md z-20 border-[4px] border-emerald-500 box-border animate-fade-scale p-6 text-center">
+                    <Icon name="checkCircle" className="w-20 h-20 text-emerald-400 mb-3 drop-shadow-[0_0_15px_rgba(52,211,153,0.8)]" />
+                    <h2 className="text-3xl font-black text-emerald-400 tracking-widest drop-shadow-md">ACCESS GRANTED</h2>
+                    
+                    <div className="mt-3 flex items-center gap-4 bg-slate-900/80 p-3 rounded-lg border border-emerald-500/40">
+                      {userPhotoUrl && (
+                        <img 
+                          src={userPhotoUrl} 
+                          alt={matchedUser} 
+                          className="w-16 h-16 rounded-full object-cover border-2 border-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]"
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      )}
+                      <div className="text-left font-mono">
+                        <div className="text-xl font-bold text-white">{matchedUser}</div>
+                        <div className="text-xs text-emerald-300">Biometric Confidence: {matchConfidence}%</div>
+                        <div className="text-[10px] text-cyan-400 uppercase mt-0.5">{matchMethod}</div>
+                      </div>
+                    </div>
+
+                    <CyberButton variant="outline" onClick={() => setScanState('idle')} className="mt-5 text-xs py-1.5 px-4 border-emerald-500 text-emerald-300">
+                      Dismiss
+                    </CyberButton>
+                  </div>
+                )}
+
+                {/* ACCESS DENIED OVERLAY */}
+                {scanState === 'denied' && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-rose-950/85 backdrop-blur-md z-20 border-[4px] border-rose-500 box-border animate-shake p-6 text-center">
+                    <Icon name="xCircle" className="w-20 h-20 text-rose-400 mb-3 drop-shadow-[0_0_15px_rgba(251,113,133,0.8)]" />
+                    <h2 className="text-3xl font-black text-rose-400 tracking-widest drop-shadow-md">ACCESS DENIED</h2>
+                    <p className="text-rose-200 mt-2 font-mono text-sm">Unknown Identity / Face Not Enrolled</p>
+                    <p className="text-slate-400 text-xs mt-1">Please register subject under User Enrollment tab.</p>
+
+                    <CyberButton variant="danger" onClick={() => setScanState('idle')} className="mt-5 text-xs py-1.5 px-4">
+                      Try Again
+                    </CyberButton>
+                  </div>
+                )}
+              </div>
+            </CyberCard>
+          </div>
+
+          {/* Controls & Telemetry Column */}
+          <div className="flex flex-col gap-6">
+            <CyberCard>
+              <h3 className="text-lg font-bold text-slate-200 mb-4 border-b border-slate-700/70 pb-2 flex items-center gap-2">
+                <Icon name="crosshair" className="w-5 h-5 text-cyan-400" /> Biometric Controls
+              </h3>
+              <div className="flex flex-col gap-3">
+                <CyberButton variant="primary" onClick={handleScan} disabled={scanState === 'scanning'} className="py-3">
+                  <Icon name="scan" className="w-5 h-5" /> Initiate Biometric Scan
+                </CyberButton>
+                <CyberButton variant="outline" onClick={() => setScanState('idle')} disabled={scanState === 'idle' || scanState === 'scanning'}>
+                  Reset Sensor
+                </CyberButton>
+              </div>
+            </CyberCard>
+
+            <CyberCard className="flex-1 flex flex-col">
+              <h3 className="text-lg font-bold text-slate-200 mb-3 border-b border-slate-700/70 pb-2 flex items-center gap-2">
+                <Icon name="activity" className="w-5 h-5 text-cyan-400" /> System Telemetry
+              </h3>
+              <div className="space-y-3 font-mono text-xs flex-1 flex flex-col justify-between">
+                <div className="space-y-2">
+                  <div className="flex justify-between border-b border-slate-800 pb-1">
+                    <span className="text-slate-400">LBPH Core:</span>
+                    <span className={scanState === 'scanning' ? "text-cyan-400 animate-pulse font-bold" : "text-emerald-400"}>
+                      {scanState === 'scanning' ? 'INFERENCE ACTIVE' : 'READY / ONLINE'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-800 pb-1">
+                    <span className="text-slate-400">QR Engine:</span>
+                    <span className="text-emerald-400">DECODER STANDBY</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-800 pb-1">
+                    <span className="text-slate-400">Sensor Frame:</span>
+                    <span className="text-cyan-400">{cameraActive ? '640x480 @ 30fps' : 'STANDBY'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Inference Latency:</span>
+                    <span className="text-cyan-400">{scanState === 'scanning' ? '42ms' : '18ms'}</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-slate-800/80">
+                  <div className="text-slate-500 mb-2 font-bold uppercase tracking-wider text-[11px]">System Audit Logs:</div>
+                  <div className="space-y-1 text-[11px] font-mono">
+                    {logs.map((log, idx) => (
+                      <div key={idx} className={idx === 0 ? "text-cyan-400 font-bold" : "text-slate-400"}>
+                        {log}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CyberCard>
+          </div>
+        </div>
+      );
+    };
+
+    // ==========================================
+    // 4. Tab 2: User Enrollment & QR Minting
+    // ==========================================
+    const EnrollmentView = () => {
+      const [username, setUsername] = useState('');
+      const [progress, setProgress] = useState(0);
+      const [enrolling, setEnrolling] = useState(false);
+      const [capturedPhoto, setCapturedPhoto] = useState(null);
+      const [resultData, setResultData] = useState(null);
+      const [errorMsg, setErrorMsg] = useState('');
+
+      // Live camera state for snapshot
+      const [isCameraOpen, setIsCameraOpen] = useState(false);
+      const videoLiveRef = useRef(null);
+      const streamRef = useRef(null);
+      const fileInputRef = useRef(null);
+
+      // Handle user uploaded photo
+      const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          setCapturedPhoto(event.target.result);
+          setErrorMsg('');
+          setIsCameraOpen(false);
+        };
+        reader.readAsDataURL(file);
+      };
+
+      // Lifecycle hook to open/close camera stream
+      useEffect(() => {
+        let activeStream = null;
+        if (isCameraOpen) {
+          async function activateCam() {
+            try {
+              activeStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }
+              });
+              streamRef.current = activeStream;
+              if (videoLiveRef.current) {
+                videoLiveRef.current.srcObject = activeStream;
+                videoLiveRef.current.play().catch(() => {});
+              }
+            } catch (err) {
+              console.error("Camera activation error:", err);
+              setErrorMsg("Webcam access denied or unavailable. Please check browser camera permissions.");
+              setIsCameraOpen(false);
+            }
+          }
+          activateCam();
+        }
+
+        return () => {
+          if (activeStream) {
+            activeStream.getTracks().forEach(t => t.stop());
+          }
+        };
+      }, [isCameraOpen]);
+
+      const openCamera = () => {
+        setErrorMsg('');
+        setIsCameraOpen(true);
+      };
+
+      const closeCamera = () => {
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(t => t.stop());
+          streamRef.current = null;
+        }
+        setIsCameraOpen(false);
+      };
+
+      // Click photo from the live camera feed
+      const handleCaptureClick = () => {
+        if (!videoLiveRef.current) return;
+        const video = videoLiveRef.current;
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+        
+        setCapturedPhoto(dataUrl);
+        closeCamera();
+        setErrorMsg('');
+      };
+
+      const handleEnroll = async () => {
+        if (!username.trim()) {
+          setErrorMsg("Please enter a valid personnel ID or username.");
+          return;
+        }
+
+        if (!capturedPhoto) {
+          setErrorMsg("Please take a webcam photo or upload a portrait image first.");
+          return;
+        }
+
+        setEnrolling(true);
+        setErrorMsg('');
+        setProgress(15);
+        setResultData(null);
+
+        const timer = setInterval(() => {
+          setProgress(p => (p < 85 ? p + 15 : p));
+        }, 300);
+
+        try {
+          const response = await fetch('/api/enroll', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: username.trim(),
+              image: capturedPhoto
+            })
+          });
+
+          const data = await response.json();
+          clearInterval(timer);
+
+          if (data.success) {
+            setProgress(100);
+            setResultData(data);
+          } else {
+            setErrorMsg(data.message || "Enrollment failed.");
+            setProgress(0);
+          }
+        } catch (err) {
+          clearInterval(timer);
+          console.error("Enrollment error:", err);
+          setErrorMsg("Server error during enrollment.");
+          setProgress(0);
+        } finally {
+          setEnrolling(false);
+        }
+      };
+
+      return (
+        <div className="max-w-3xl mx-auto h-full animate-fade-in flex flex-col justify-center py-4">
+          <CyberCard className="w-full">
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-bold text-cyan-400 mb-1">New Identity Biometric Registration</h2>
+              <p className="text-slate-400 text-sm">Synthesize face datasets, compile LBPH neural classifier, and mint photo-embedded QR badge.</p>
+            </div>
+
+            {errorMsg && (
+              <div className="mb-4 p-3 bg-rose-950/80 border border-rose-500 rounded text-rose-300 text-xs font-mono">
+                {errorMsg}
+              </div>
+            )}
+
+            <div className="space-y-5">
+              <div>
+                <label className="block text-xs font-mono text-cyan-400 mb-2 uppercase tracking-wider">Personnel ID / Subject Name</label>
+                <input 
+                  type="text" 
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="e.g. Sameer_007" 
+                  disabled={enrolling}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors font-mono"
+                />
+              </div>
+
+              {/* LIVE CAMERA VIEWFINDER */}
+              {isCameraOpen ? (
+                <div className="bg-slate-950 p-4 rounded-xl border-2 border-cyan-400 shadow-[0_0_30px_rgba(56,189,248,0.35)] animate-fade-in relative overflow-hidden">
+                  <div className="flex justify-between items-center mb-3">
+                    <div className="flex items-center gap-2 text-cyan-400 font-mono text-xs font-bold">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                      </span>
+                      <span>CAMERA FEED ACTIVE — POSITION YOUR FACE INSIDE FRAME</span>
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={closeCamera} 
+                      className="text-slate-400 hover:text-rose-400 text-xs font-mono flex items-center gap-1"
+                    >
+                      <Icon name="close" className="w-4 h-4" /> Cancel
+                    </button>
+                  </div>
+
+                  {/* Video Viewport with Target Framing */}
+                  <div className="relative rounded-lg overflow-hidden border border-slate-700 bg-black min-h-[340px] max-h-[400px] flex items-center justify-center">
+                    <video 
+                      ref={videoLiveRef} 
+                      autoPlay 
+                      playsInline 
+                      muted 
+                      className="w-full h-full object-cover"
+                    />
+
+                    {/* Cyber Target Face Overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="w-52 h-64 border-2 border-cyan-400/75 rounded-2xl relative shadow-[0_0_25px_rgba(56,189,248,0.4)]">
+                        <div className="absolute -top-2.5 -left-2.5 w-7 h-7 border-t-4 border-l-4 border-cyan-400"></div>
+                        <div className="absolute -top-2.5 -right-2.5 w-7 h-7 border-t-4 border-r-4 border-cyan-400"></div>
+                        <div className="absolute -bottom-2.5 -left-2.5 w-7 h-7 border-b-4 border-l-4 border-cyan-400"></div>
+                        <div className="absolute -bottom-2.5 -right-2.5 w-7 h-7 border-b-4 border-r-4 border-cyan-400"></div>
+                        <div className="absolute top-2 left-0 w-full text-center text-cyan-300 font-mono text-[10px] tracking-widest uppercase bg-slate-950/70 py-0.5">
+                          ALIGN FACE HERE
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Capture Button */}
+                  <div className="mt-4 flex gap-3">
+                    <CyberButton 
+                      type="button" 
+                      variant="success" 
+                      onClick={handleCaptureClick} 
+                      className="flex-1 py-3.5 text-base font-bold shadow-[0_0_20px_rgba(16,185,129,0.5)]"
+                    >
+                      <Icon name="camera" className="w-5 h-5" /> Click Photo for Model Training
+                    </CyberButton>
+                    <CyberButton 
+                      type="button" 
+                      variant="outline" 
+                      onClick={closeCamera} 
+                      className="py-3 px-5 text-sm"
+                    >
+                      Cancel
+                    </CyberButton>
+                  </div>
+                </div>
+              ) : (
+                /* Choice Box: Upload Image OR Open Webcam */
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div 
+                    onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                    className="p-6 border-2 border-dashed border-slate-700 rounded-lg text-center hover:border-cyan-500/50 transition-colors cursor-pointer group flex flex-col items-center justify-center min-h-[140px]"
+                  >
+                    <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />
+                    <Icon name="userPlus" className="w-10 h-10 text-slate-500 mx-auto mb-2 group-hover:text-cyan-400 transition-colors" />
+                    <p className="text-slate-300 text-sm font-medium">Upload Portrait Image</p>
+                    <p className="text-slate-500 text-xs mt-1">PNG, JPG, BMP formats</p>
+                  </div>
+
+                  <div 
+                    onClick={openCamera}
+                    className="p-6 border-2 border-dashed border-cyan-700/60 rounded-lg text-center hover:border-emerald-400 transition-all cursor-pointer group flex flex-col items-center justify-center min-h-[140px] bg-slate-950/30 hover:bg-slate-900/50"
+                  >
+                    <Icon name="camera" className="w-10 h-10 text-cyan-400 mx-auto mb-2 group-hover:text-emerald-400 transition-colors" />
+                    <p className="text-white text-sm font-bold group-hover:text-emerald-300">Open Live Camera</p>
+                    <p className="text-slate-400 text-xs mt-1">Preview face & click photo on demand</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Preview of captured photo */}
+              {capturedPhoto && !isCameraOpen && (
+                <div className="p-4 bg-slate-950 rounded-xl border border-cyan-500/50 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-[0_0_15px_rgba(56,189,248,0.2)]">
+                  <div className="flex items-center gap-3.5">
+                    <img src={capturedPhoto} alt="Subject Face" className="w-16 h-16 rounded-lg object-cover border-2 border-cyan-400 shadow-[0_0_12px_rgba(56,189,248,0.4)]" />
+                    <div>
+                      <div className="text-sm font-bold text-white font-mono flex items-center gap-1.5">
+                        <Icon name="checkCircle" className="w-4 h-4 text-emerald-400" /> Portrait Photo Ready
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">Ready for LBPH biometric compilation & QR badge generation.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <button 
+                      type="button"
+                      onClick={openCamera} 
+                      className="flex-1 sm:flex-none py-2 px-3.5 bg-slate-800 hover:bg-cyan-900 border border-slate-700 hover:border-cyan-400 rounded-lg text-xs font-semibold text-cyan-300 transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Icon name="camera" className="w-4 h-4" /> Retake Photo
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setCapturedPhoto(null)} 
+                      className="py-2 px-3 bg-slate-800 hover:bg-rose-900 border border-slate-700 hover:border-rose-500 rounded-lg text-xs font-semibold text-rose-300 transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Icon name="trash" className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!enrolling && progress === 0 && (
+                <CyberButton onClick={handleEnroll} disabled={!capturedPhoto || !username.trim()} className="w-full py-3.5 text-base font-bold">
+                  <Icon name="cpu" className="w-5 h-5" /> Initialize Biometric Compilation
+                </CyberButton>
+              )}
+
+              {/* Progress & Log view */}
+              {(enrolling || progress > 0) && (
+                <div className="bg-slate-950 p-4 rounded-lg border border-cyan-900">
+                  <div className="flex justify-between text-xs font-mono text-cyan-400 mb-2">
+                    <span>Compilation Pipeline Progress</span>
+                    <span>{progress}%</span>
+                  </div>
+                  <div className="w-full bg-slate-800 rounded-full h-2.5 mb-4 overflow-hidden">
+                    <div 
+                      className="bg-cyan-400 h-2.5 rounded-full transition-all duration-300 ease-out shadow-[0_0_10px_#22d3ee]" 
+                      style={{ width: `${progress}%` }}
+                    ></div>
+                  </div>
+                  <div className="text-xs text-slate-400 font-mono space-y-1">
+                    <div className={progress >= 15 ? "text-cyan-300" : ""}>&gt; Synthesizing facial landmarks & augmented frames... {progress >= 15 ? 'DONE' : ''}</div>
+                    <div className={progress >= 50 ? "text-cyan-300" : ""}>&gt; Compiling LBPH biometric classifier (.xml)... {progress >= 50 ? 'DONE' : ''}</div>
+                    <div className={progress >= 75 ? "text-cyan-300" : ""}>&gt; Embedding portrait photo into high-error-correction QR... {progress >= 75 ? 'DONE' : ''}</div>
+                    <div className={progress >= 100 ? "text-emerald-400 font-bold" : ""}>&gt; Cybernetic ID badge minted & verified! {progress >= 100 ? 'SUCCESS' : ''}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Generated Result Display */}
+              {resultData && (
+                <div className="mt-6 p-4 bg-slate-950/90 rounded-xl border border-emerald-500/50 animate-fade-in">
+                  <h4 className="text-emerald-400 font-bold font-mono text-center mb-4 flex items-center justify-center gap-2">
+                    <Icon name="checkCircle" className="w-5 h-5" /> ENROLLMENT COMPLETE
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                    <div className="text-center bg-slate-900 p-3 rounded-lg border border-slate-800">
+                      <p className="text-xs font-mono text-slate-400 mb-2">Photo-Embedded QR Code</p>
+                      <img src={resultData.qrUrl} alt="QR Code" className="w-36 h-36 mx-auto rounded bg-white p-1" />
+                      <a href={resultData.qrUrl} download={`${username}_qr.png`} className="inline-block mt-2 text-xs text-cyan-400 hover:underline">
+                        Download QR
+                      </a>
+                    </div>
+                    <div className="text-center bg-slate-900 p-3 rounded-lg border border-slate-800">
+                      <p className="text-xs font-mono text-slate-400 mb-2">Cybernetic Access Badge</p>
+                      <img src={resultData.badgeUrl} alt="Badge" className="max-h-36 mx-auto rounded border border-cyan-500/30" />
+                      <a href={resultData.badgeUrl} download={`${username}_badge.png`} className="inline-block mt-2 text-xs text-cyan-400 hover:underline">
+                        Download Badge
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CyberCard>
+        </div>
+      );
+    };
+
+    // ==========================================
+    // 5. Tab 3: System Database (Identity Directory)
+    // ==========================================
+    const DatabaseView = ({ onOpenDeleteModal, deleteTargetUser }) => {
+      const [users, setUsers] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [inspectUser, setInspectUser] = useState(null);
+      const [actionMsg, setActionMsg] = useState('');
+      const [deleteModalUser, setDeleteModalUser] = useState(null);
+      const [isDeleting, setIsDeleting] = useState(false);
+
+      const fetchUsers = async () => {
+        setLoading(true);
+        try {
+          const res = await fetch('/api/users');
+          const data = await res.json();
+          setUsers(data);
+        } catch (err) {
+          console.error("Failed to load users:", err);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      useEffect(() => {
+        fetchUsers();
+      }, []);
+
+      const handleDeleteUser = async (username) => {
+        if (!username) return;
+        setIsDeleting(true);
+        try {
+          const res = await fetch('/api/delete_user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: username })
+          });
+          const data = await res.json();
+          if (data.success) {
+            setActionMsg(`SUCCESS: All biometric files, model, QR, and database records permanently deleted for '${username}'.`);
+            setDeleteModalUser(null);
+            if (inspectUser && inspectUser.id === username) {
+              setInspectUser(null);
+            }
+            fetchUsers();
+          } else {
+            setActionMsg(`ERROR: ${data.message || 'Deletion failed.'}`);
+          }
+        } catch (err) {
+          console.error("Delete error:", err);
+          setActionMsg("Server error while deleting user data.");
+        } finally {
+          setIsDeleting(false);
+        }
+      };
+
+      const handleTrainAll = async () => {
+        setActionMsg("Re-training LBPH models for all enrolled users...");
+        try {
+          const res = await fetch('/api/train_all', { method: 'POST' });
+          const data = await res.json();
+          setActionMsg("Classifiers re-trained successfully!");
+          fetchUsers();
+        } catch (err) {
+          setActionMsg("Error re-training classifiers.");
+        }
+      };
+
+      return (
+        <div className="h-full animate-fade-in flex flex-col min-h-0">
+          {/* Header Controls */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4 flex-shrink-0">
+            <div>
+              <h2 className="text-2xl font-bold text-cyan-400">Identity Directory</h2>
+              <p className="text-slate-400 text-sm">Real-time enrolled biometric profiles, neural classifiers, and access passes.</p>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <CyberButton variant="danger" onClick={() => setDeleteModalUser(users.length > 0 ? users[0].id : '')} className="text-xs py-2 px-3.5">
+                <Icon name="trash" className="w-4 h-4" /> Delete User Data
+              </CyberButton>
+              <CyberButton variant="outline" onClick={handleTrainAll} className="text-xs py-2 px-3">
+                <Icon name="cpu" className="w-4 h-4" /> Train All Models
+              </CyberButton>
+              <CyberButton variant="outline" onClick={fetchUsers} className="text-xs py-2 px-3">
+                <Icon name="refresh" className="w-4 h-4" /> Sync DB
+              </CyberButton>
+            </div>
+          </div>
+
+          {actionMsg && (
+            <div className="mb-4 p-3 bg-cyan-950/80 border border-cyan-400 rounded-lg text-cyan-300 text-xs font-mono flex justify-between items-center flex-shrink-0">
+              <span>{actionMsg}</span>
+              <button onClick={() => setActionMsg('')} className="text-cyan-400 hover:text-white font-bold ml-2">✕</button>
+            </div>
+          )}
+
+          {loading ? (
+            <div className="flex-1 flex items-center justify-center text-cyan-400 font-mono">
+              <span className="animate-pulse">Loading Biometric Records...</span>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto pr-2 pb-10 min-h-0">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {users.map((user, idx) => (
+                  <div 
+                    key={idx} 
+                    className="bg-slate-900/70 backdrop-blur-xl border border-cyan-500/25 rounded-xl p-5 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] transition-all duration-300 hover:border-cyan-400/60 hover:shadow-[0_0_20px_rgba(56,189,248,0.2)] relative overflow-hidden flex flex-col justify-between min-h-[220px]"
+                  >
+                    <div className={`absolute top-0 left-0 w-1.5 h-full ${user.status === 'Active' ? 'bg-emerald-500' : 'bg-amber-500'} shadow-[0_0_10px_currentColor]`}></div>
+                    
+                    <div>
+                      {/* Top Row: User Avatar & Name & Role */}
+                      <div className="flex justify-between items-start mb-3.5 pl-3">
+                        <div className="flex items-center gap-3">
+                          {user.photoUrl ? (
+                            <img 
+                              src={user.photoUrl} 
+                              alt={user.id} 
+                              className="w-11 h-11 rounded-full object-cover border-2 border-cyan-400 shadow-[0_0_10px_rgba(56,189,248,0.3)] bg-slate-950" 
+                              onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                          ) : null}
+                          <div>
+                            <h4 className="text-lg font-bold text-white group-hover:text-cyan-300 transition-colors font-mono tracking-wide">{user.id}</h4>
+                            <span className="text-[10px] font-mono text-cyan-400 uppercase tracking-widest bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/40">
+                              {user.role || 'Personnel'}
+                            </span>
+                          </div>
+                        </div>
+                        <Icon name="fingerprint" className={`w-8 h-8 ${user.status === 'Active' ? 'text-cyan-400/70' : 'text-slate-600'} transition-colors`} />
+                      </div>
+
+                      {/* Metadata Rows */}
+                      <div className="space-y-1.5 pl-3 font-mono text-xs">
+                        <div className="flex justify-between border-b border-slate-800/80 pb-1">
+                          <span className="text-slate-400">Model Status:</span>
+                          <span className={user.status === 'Active' ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>
+                            {user.status === 'Active' ? '● Active' : '○ Pending'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between border-b border-slate-800/80 pb-1">
+                          <span className="text-slate-400">Dataset Samples:</span>
+                          <span className="text-slate-200">{user.frames} frames</span>
+                        </div>
+                        <div className="flex justify-between pb-1">
+                          <span className="text-slate-400">Model File Size:</span>
+                          <span className="text-slate-200">{user.modelSize}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons: Inspect & Delete Data */}
+                    <div className="mt-4 pl-3 pt-3 border-t border-slate-800 flex gap-2">
+                      <button 
+                        onClick={() => setInspectUser(user)}
+                        className="flex-1 py-2 px-3 bg-slate-800 hover:bg-cyan-900/60 border border-slate-700 hover:border-cyan-400 rounded-lg text-xs font-semibold text-white transition-all flex items-center justify-center gap-1.5 shadow"
+                      >
+                        <Icon name="eye" className="w-4 h-4 text-cyan-400" /> Inspect
+                      </button>
+                      <button 
+                        onClick={() => setDeleteModalUser(user.id)}
+                        className="flex-1 py-2 px-3 bg-rose-950/50 hover:bg-rose-700 border border-rose-500/50 hover:border-rose-400 rounded-lg text-xs font-semibold text-rose-300 hover:text-white transition-all flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(244,63,94,0.25)]"
+                      >
+                        <Icon name="trash" className="w-4 h-4 text-rose-400" /> Delete Data
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Inspect Modal */}
+          {inspectUser && (
+            <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+              <div className="bg-slate-900 border border-cyan-500 rounded-xl p-6 max-w-xl w-full relative shadow-[0_0_35px_rgba(56,189,248,0.3)] animate-fade-scale">
+                <button 
+                  onClick={() => setInspectUser(null)} 
+                  className="absolute top-4 right-4 text-slate-400 hover:text-white p-1"
+                >
+                  <Icon name="close" className="w-5 h-5" />
+                </button>
+
+                <h3 className="text-xl font-bold text-cyan-400 font-mono mb-4 flex items-center gap-2">
+                  <Icon name="shield" className="w-5 h-5" /> Biometric Identity: {inspectUser.id}
+                </h3>
+
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row justify-center gap-5 bg-slate-950 p-4 rounded-xl border border-slate-800">
+                    {inspectUser.badgeUrl && (
+                      <div className="flex-1 text-center flex flex-col items-center">
+                        <p className="text-xs font-mono text-cyan-400 font-bold mb-2 uppercase tracking-wider">Access Badge</p>
+                        <div className="p-1.5 rounded-lg border border-cyan-500/40 bg-slate-900 shadow-[0_0_15px_rgba(56,189,248,0.2)] mb-3 flex items-center justify-center">
+                          <img src={inspectUser.badgeUrl} alt="Access Badge" className="max-h-52 rounded object-contain" />
+                        </div>
+                        <a 
+                          href={`${inspectUser.badgeUrl}?download=1`} 
+                          download={`${inspectUser.id}_badge.png`}
+                          className="w-full py-2.5 px-3 bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-500 hover:to-blue-600 border border-cyan-400/50 rounded-lg text-xs font-bold text-white transition-all flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(56,189,248,0.3)] hover:shadow-[0_0_18px_rgba(56,189,248,0.5)]"
+                        >
+                          <Icon name="download" className="w-4 h-4" /> Download Badge
+                        </a>
+                      </div>
+                    )}
+                    {inspectUser.qrUrl && (
+                      <div className="flex-1 text-center flex flex-col items-center">
+                        <p className="text-xs font-mono text-cyan-400 font-bold mb-2 uppercase tracking-wider">Photo QR Code</p>
+                        <div className="p-2 rounded-lg border border-cyan-500/40 bg-white shadow-[0_0_15px_rgba(56,189,248,0.2)] mb-3 flex items-center justify-center min-h-[140px]">
+                          <img src={inspectUser.qrUrl} alt="Photo QR" className="w-36 h-36 object-contain" />
+                        </div>
+                        <a 
+                          href={`${inspectUser.qrUrl}?download=1`} 
+                          download={`${inspectUser.id}_qr.png`}
+                          className="w-full py-2.5 px-3 bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-500 hover:to-blue-600 border border-cyan-400/50 rounded-lg text-xs font-bold text-white transition-all flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(56,189,248,0.3)] hover:shadow-[0_0_18px_rgba(56,189,248,0.5)]"
+                        >
+                          <Icon name="download" className="w-4 h-4" /> Download QR
+                        </a>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-slate-950 p-3 rounded border border-slate-800">
+                    <div><span className="text-slate-500">Personnel ID:</span> {inspectUser.id}</div>
+                    <div><span className="text-slate-500">Role:</span> {inspectUser.role || 'Personnel'}</div>
+                    <div><span className="text-slate-500">Dataset Frames:</span> {inspectUser.frames}</div>
+                    <div><span className="text-slate-500">Model Size:</span> {inspectUser.modelSize}</div>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex justify-between items-center gap-3">
+                  <button 
+                    onClick={() => {
+                      const uid = inspectUser.id;
+                      setInspectUser(null);
+                      setDeleteModalUser(uid);
+                    }}
+                    className="py-2 px-4 bg-rose-950/60 hover:bg-rose-700 border border-rose-500 rounded-lg text-xs font-bold text-rose-300 hover:text-white transition-all flex items-center gap-2 shadow-[0_0_12px_rgba(244,63,94,0.3)]"
+                  >
+                    <Icon name="trash" className="w-4 h-4" /> Delete This User Data
+                  </button>
+                  <CyberButton variant="outline" onClick={() => setInspectUser(null)} className="text-xs py-2 px-5">
+                    Close
+                  </CyberButton>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Dedicated Permanent Delete Confirmation Modal */}
+          {deleteModalUser !== null && (
+            <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+              <div className="bg-slate-900 border-2 border-rose-500 rounded-2xl p-6 max-w-md w-full relative shadow-[0_0_40px_rgba(244,63,94,0.4)] animate-shake">
+                <button 
+                  onClick={() => setDeleteModalUser(null)} 
+                  className="absolute top-4 right-4 text-slate-400 hover:text-white p-1"
+                >
+                  <Icon name="close" className="w-5 h-5" />
+                </button>
+
+                <div className="flex items-center gap-3 text-rose-400 font-bold text-xl mb-3">
+                  <Icon name="trash" className="w-7 h-7 text-rose-500 animate-pulse" />
+                  <span>Delete Subject From Database</span>
+                </div>
+
+                <p className="text-slate-300 text-sm mb-4 leading-relaxed">
+                  Select a user profile to permanently delete from the HARIS biometric access database:
+                </p>
+
+                {/* Dropdown to select which user to delete */}
+                <div className="mb-4">
+                  <label className="block text-xs font-mono text-cyan-400 mb-1.5 uppercase tracking-wider">Target Identity</label>
+                  <select 
+                    value={deleteModalUser} 
+                    onChange={(e) => setDeleteModalUser(e.target.value)}
+                    disabled={isDeleting}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2.5 text-white font-mono text-sm focus:outline-none focus:border-rose-400"
+                  >
+                    {users.map(u => (
+                      <option key={u.id} value={u.id}>{u.id} ({u.frames} frames, {u.status})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="bg-rose-950/40 border border-rose-500/40 rounded-lg p-3.5 mb-5 font-mono text-xs text-rose-200 space-y-1.5">
+                  <div className="font-bold text-rose-400 flex items-center gap-1.5 mb-1">
+                    <Icon name="xCircle" className="w-4 h-4" /> This action will permanently purge:
+                  </div>
+                  <div>• Face Dataset Frames (<code className="text-white">data/{deleteModalUser}</code>)</div>
+                  <div>• LBPH Neural Classifier (<code className="text-white">{deleteModalUser}_classifier.xml</code>)</div>
+                  <div>• Photo-Embedded QR Badge (<code className="text-white">{deleteModalUser}_qr.png</code>)</div>
+                  <div>• Cybernetic Access Pass (<code className="text-white">{deleteModalUser}_badge.png</code>)</div>
+                  <div>• Registry Record (<code className="text-white">nameslist.txt</code>)</div>
+                </div>
+
+                <div className="flex justify-end gap-3">
+                  <CyberButton 
+                    variant="outline" 
+                    onClick={() => setDeleteModalUser(null)} 
+                    disabled={isDeleting}
+                    className="text-xs py-2 px-4"
+                  >
+                    Cancel
+                  </CyberButton>
+                  <CyberButton 
+                    variant="danger" 
+                    onClick={() => handleDeleteUser(deleteModalUser)} 
+                    disabled={isDeleting || !deleteModalUser}
+                    className="text-xs py-2 px-4 font-bold"
+                  >
+                    {isDeleting ? 'Purging Data...' : 'Permanently Delete Data'}
+                  </CyberButton>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // ==========================================
+    // 6. Root Application Layout
+    // ==========================================
+    function App() {
+      const [activeTab, setActiveTab] = useState('verify');
+
+      return (
+        <>
+          <ParticleNetwork />
+
+          <div className="relative z-10 flex h-screen w-full text-slate-200 overflow-hidden font-sans">
+            
+            {/* Sidebar Navigation */}
+            <nav className="w-64 md:w-72 bg-slate-900/80 backdrop-blur-2xl border-r border-cyan-500/20 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.4)]">
+              <div className="p-6 border-b border-cyan-500/20 text-center">
+                <h1 className="text-3xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 drop-shadow-[0_0_10px_rgba(34,211,238,0.4)]">
+                  HARIS
+                </h1>
+                <p className="text-[10px] uppercase font-mono text-cyan-500/70 tracking-widest mt-1">Biometric Core v2.5</p>
+              </div>
+
+              <div className="flex-1 py-6 px-4 space-y-2 overflow-y-auto">
+                <button 
+                  onClick={() => setActiveTab('verify')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 font-medium tracking-wide ${activeTab === 'verify' ? 'bg-cyan-900/40 text-cyan-300 border border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.2)]' : 'text-slate-400 hover:text-cyan-400 hover:bg-slate-800/50 border border-transparent'}`}
+                >
+                  <Icon name="shield" className={`w-5 h-5 ${activeTab === 'verify' ? 'text-cyan-300' : ''}`} /> Live Access Core
+                </button>
+                <button 
+                  onClick={() => setActiveTab('enroll')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 font-medium tracking-wide ${activeTab === 'enroll' ? 'bg-cyan-900/40 text-cyan-300 border border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.2)]' : 'text-slate-400 hover:text-cyan-400 hover:bg-slate-800/50 border border-transparent'}`}
+                >
+                  <Icon name="userPlus" className={`w-5 h-5 ${activeTab === 'enroll' ? 'text-cyan-300' : ''}`} /> User Enrollment
+                </button>
+                <button 
+                  onClick={() => setActiveTab('database')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 font-medium tracking-wide ${activeTab === 'database' ? 'bg-cyan-900/40 text-cyan-300 border border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.2)]' : 'text-slate-400 hover:text-cyan-400 hover:bg-slate-800/50 border border-transparent'}`}
+                >
+                  <Icon name="database" className={`w-5 h-5 ${activeTab === 'database' ? 'text-cyan-300' : ''}`} /> System Database
+                </button>
+              </div>
+
+              <div className="p-4 bg-slate-950/50 border-t border-cyan-500/20">
+                <div className="flex items-center gap-2 text-xs font-mono text-emerald-400 mb-2">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  NODE: ONLINE
+                </div>
+                <div className="flex items-center gap-2 text-xs font-mono text-slate-500">
+                  <Icon name="terminal" className="w-3.5 h-3.5" /> Root Access Granted
+                </div>
+              </div>
+            </nav>
+
+            {/* Main Content Area */}
+            <main className="flex-1 p-6 md:p-8 overflow-y-auto">
+              {activeTab === 'verify' && <LiveAccessView />}
+              {activeTab === 'enroll' && <EnrollmentView />}
+              {activeTab === 'database' && <DatabaseView />}
+            </main>
+          </div>
+        </>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
+
